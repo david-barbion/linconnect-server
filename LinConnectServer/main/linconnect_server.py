@@ -41,6 +41,10 @@ import pybonjour
 import shutil
 import base64
 
+import bluetooth
+import json
+import time
+
 app_name = 'linconnect-server'
 version = "2.20"
 
@@ -82,6 +86,7 @@ except IOError:
         text_file.write("""[connection]
 port = 9090
 enable_bonjour = 1
+enable_bluetooth = 1
 
 [other]
 enable_instruction_webpage = 1
@@ -151,6 +156,74 @@ class Notification(object):
         return "true"
     notif.exposed = True
 
+class bluetoothClientThread(threading.Thread):
+	def __init__ (self, sock, info):
+		threading.Thread.__init__(self)
+		self.client_sock = sock
+		self.client_info = info
+
+	def run(self):
+		print ("Starting bluetooth client thread")
+		self.client_sock.setblocking(0)
+
+		header_data_json = base64.b64decode(self.get_data())
+		print ("Received [%s]" % header_data_json)
+		header_data = json.loads(header_data_json)
+
+		self.write_data(base64.b64encode("HEADEROK"))
+
+		_notification_header = header_data["notificationheader"]
+		_notification_description = header_data["notificationdescription"]
+
+		icon_data = self.get_data()
+
+		if (len(icon_data)):
+			print ("Received icon (%s bytes)" % len(icon_data))
+			self.write_data(base64.b64encode("ICONOK"))
+			icon_path = icon_path_format % hashlib.md5(icon_data).hexdigest()
+			if not os.path.isfile(icon_path):
+				with open(icon_path, 'w') as icon_file:
+					icon_file.write(icon_data)
+			notif = Notify.Notification.new(_notification_header,_notification_description,icon_path)
+		else:
+			print ("No icon data received")
+			notif = Notify.Notification.new(_notification_header,_notification_description)
+
+		try:
+			notif.show()
+		except:
+			pass
+
+		print ("Closing client socket")
+		self.client_sock.close()
+
+	def get_data(self):
+		total_data = []
+		begin = time.time()
+		timeout = 1
+		while True:
+			if (total_data and time.time()-begin > timeout):
+				break
+			elif (time.time()-begin > timeout*2):
+				break
+
+			try:
+				data = self.client_sock.recv(1024)
+				if data:
+					total_data.append(data)
+					begin = time.time()
+				else:
+					time.sleep(0.1)
+			except IOError:
+				pass
+
+		return ''.join(total_data)
+
+	def write_data(self,data):
+		try:
+			self.client_sock.send(data)
+		except IOError:
+			pass
 
 def register_callback(sdRef, flags, errorCode, name, regtype, domain):
     if errorCode == pybonjour.kDNSServiceErr_NoError:
@@ -181,6 +254,34 @@ def get_local_ip():
             ips.append(ip + ":" + parser.get('connection', 'port'))
     return ips
 
+def bluetooth_server():
+	server_sock=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
+	server_sock.bind(("",bluetooth.PORT_ANY))
+	server_sock.listen(1)
+
+	port = server_sock.getsockname()[1]
+	uuid = "ef466c25-8211-438a-9f39-b8ddecf1fbb8"
+	bluetooth.advertise_service( server_sock, "linnconnect-server",
+						       service_id = uuid,
+						       service_classes = [ uuid, bluetooth.SERIAL_PORT_CLASS ],
+						       profiles = [ bluetooth.SERIAL_PORT_PROFILE ],
+						       )
+
+	print ("Bluetooth server started, waiting for connections on RFCOMM channel %d" % port)
+
+	try:
+		while True:
+			client_sock, client_info = server_sock.accept()
+			print ("Accepted connection from ", client_info)
+			th = bluetoothClientThread(client_sock,client_info)
+			th.start()
+
+	except IOError:
+		pass
+
+	print ("Bluetooth server exiting. Closing server socket.")
+	server_sock.close()
+
 # Initialization
 if not Notify.init("com.willhauck.linconnect"):
     raise ImportError("Error initializing libnotify")
@@ -188,6 +289,11 @@ if not Notify.init("com.willhauck.linconnect"):
 # Start Bonjour if desired
 if parser.getboolean('connection', 'enable_bonjour') == 1:
     thr = threading.Thread(target=initialize_bonjour)
+    thr.start()
+
+# Start Bluetooth server if desired
+if parser.getboolean('connection', 'enable_bluetooth') == 1:
+    thr = threading.Thread(target=bluetooth_server)
     thr.start()
 
 config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
