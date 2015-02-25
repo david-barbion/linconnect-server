@@ -182,6 +182,8 @@ def initialize_bonjour():
 
 def get_local_ip():
     port = parser.get('connection', 'port')
+    if cherrypy.server.socket_host != "0.0.0.0":
+        return [cherrypy.server.socket_host + ":" + port]
     iplines = (line.strip() for line in subprocess.check_output("/sbin/ip address", shell=True).split('\n'))
     addresses = reduce(lambda a,v:a+v,(re.findall(r"inet ([\d.]+/\d+)",line) for line in iplines))
     return [(ip + ":" + port) for ip, subnet in (addr.split('/') for addr in addresses if '.' in addr) if not ip.startswith("127.")]
@@ -198,12 +200,18 @@ if parser.getboolean('connection', 'enable_bonjour') == 1:
     else:
         print("Bonjour not available, not initializing.")
 
-config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
+try:
+    cherrypy.server.socket_host = parser.get('connection', 'listen')
+    instructions_host = cherrypy.server.socket_host
+except:
+    cherrypy.server.socket_host = '0.0.0.0'
+    instructions_host = 'localhost'
+
+config_instructions = "Configuration instructions at http://%s:%s" % (instructions_host, parser.get('connection', 'port'))
 print(config_instructions)
 notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
 notif.show()
 
-cherrypy.server.socket_host = '0.0.0.0'
 cherrypy.server.socket_port = int(parser.get('connection', 'port'))
 
 cherrypy.quickstart(Notification())
