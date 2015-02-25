@@ -181,11 +181,10 @@ def initialize_bonjour():
 
 
 def get_local_ip():
-    ips = []
-    for ip in subprocess.check_output("/sbin/ip address | grep -i 'inet ' | awk {'print $2'} | sed -e 's/\/[^\/]*$//'", shell=True).split("\n"):
-        if ip.__len__() > 0 and not ip.startswith("127."):
-            ips.append(ip + ":" + parser.get('connection', 'port'))
-    return ips
+    port = parser.get('connection', 'port')
+    iplines = (line.strip() for line in subprocess.check_output("/sbin/ip address", shell=True).split('\n'))
+    addresses = reduce(lambda a,v:a+v,(re.findall(r"inet ([\d.]+/\d+)",line) for line in iplines))
+    return [(ip + ":" + port) for ip, subnet in (addr.split('/') for addr in addresses if '.' in addr) if not ip.startswith("127.")]
 
 # Initialization
 if not Notify.init("com.willhauck.linconnect"):
