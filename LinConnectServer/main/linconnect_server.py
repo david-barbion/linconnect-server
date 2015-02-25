@@ -37,7 +37,13 @@ import cherrypy
 import subprocess
 from gi.repository import Notify
 from gi.repository import GLib
-import pybonjour
+
+try:
+    import pybonjour
+    have_bonjour = True
+except:
+    have_bonjour = False
+
 import shutil
 import base64
 
@@ -187,8 +193,11 @@ if not Notify.init("com.willhauck.linconnect"):
 
 # Start Bonjour if desired
 if parser.getboolean('connection', 'enable_bonjour') == 1:
-    thr = threading.Thread(target=initialize_bonjour)
-    thr.start()
+    if have_bonjour:
+        thr = threading.Thread(target=initialize_bonjour)
+        thr.start()
+    else:
+        print("Bonjour not available, not initializing.")
 
 config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
 print(config_instructions)
