@@ -251,13 +251,13 @@ class bluetoothClientThread(threading.Thread):
 class LinconnectIndicator():
     def __init__(self):
         self.ind = AppIndicator.Indicator.new("Linconnect Indicator",
-                                          "indicator-messages",
+                                          "linconnect",
                                            AppIndicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-        self.ind.set_attention_icon("indicator-messages-new")
-        self.ind.set_icon_theme_path("res")
+#        self.ind.set_attention_icon("indicator-messages-new")
+        self.ind.set_icon_theme_path(os.getcwd() + "/res")
         #self.isIntegrated = self.checkIntegrated()
-        self.ind.set_icon('linconnect')
+        self.ind.set_icon_full('linconnect', 'program icon')
         self.menu_setup()
         self.ind.set_menu(self.menu)
     
@@ -284,9 +284,11 @@ class LinconnectIndicator():
         global _notification_disabled
         if widget.get_active():
           _notification_disabled = False
+          self.ind.set_icon_full('linconnect', 'program icon on')
           print("Notification switched on")
         else:
           _notification_disabled = True
+          self.ind.set_icon_full('linconnect-off', 'program icon off')
           print("Notification switched off")
 
     def quit(self, widget, data=None):
