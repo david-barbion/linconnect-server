@@ -205,10 +205,10 @@ class bluetoothClientThread(threading.Thread):
 			notif = Notify.Notification.new(_notification_header,_notification_description)
 
 		try:
-                        if not _notification_disabled:
-			    notif.show()
-                        else:
-                            print("notification disabled, skipped")
+			if not _notification_disabled:
+				notif.show()
+			else:
+				print("notification disabled, skipped")
 		except:
 			pass
 
@@ -285,6 +285,12 @@ class LinconnectIndicator():
 
     def quit(self, widget, data=None):
         print("should exit")
+        for thread in threading.enumerate():
+            if thread.isAlive():
+                try:
+                    thread._Thread__stop()
+                except:
+                    print(str(thread.getName()) + ' could not be terminated')
         cherrypy.engine.exit()
         Gtk.main_quit()
 
@@ -296,28 +302,27 @@ class LinconnectServerThread(threading.Thread):
         # Start Bonjour if desired
         if parser.getboolean('connection', 'enable_bonjour') == 1:
             if have_bonjour:
-                thr = threading.Thread(target=initialize_bonjour)
-                thr.start()
+                self.bonjour_thr = threading.Thread(target=initialize_bonjour)
+                self.bonjour_thr.start()
             else:
                 print("Bonjour not available, not initializing.")
-                if parser.getboolean('connection', 'enable_bonjour') == 1:
-                    thr = threading.Thread(target=initialize_bonjour)
-                    thr.start()
         
         # Start Bluetooth server if desired
         if parser.getboolean('connection', 'enable_bluetooth') == 1:
-            thr = threading.Thread(target=bluetooth_server)
-            thr.start()
+            self.bluetooth_thr = threading.Thread(target=bluetooth_server)
+            self.bluetooth_thr.start()
         
         config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
         print(config_instructions)
         notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
-        notif.show()
+        if not _notification_disabled:
+          notif.show()
     
     def run(self):
         cherrypy.server.socket_host = '0.0.0.0'
         cherrypy.server.socket_port = int(parser.get('connection', 'port'))
         cherrypy.quickstart(Notification())
+        print("LinconnectServerThread exited")
 
 def register_callback(sdRef, flags, errorCode, name, regtype, domain):
     if errorCode == pybonjour.kDNSServiceErr_NoError:
