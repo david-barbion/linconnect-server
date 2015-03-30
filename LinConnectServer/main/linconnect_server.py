@@ -24,6 +24,14 @@ try:
     import ConfigParser
 except ImportError:
     import configparser as ConfigParser
+from dbus.mainloop.glib import threads_init
+threads_init()
+
+from gi.repository import Gtk
+from gi.repository import Gdk
+from gi.repository import GObject
+from gi.repository import AppIndicator3 as AppIndicator
+from gi.repository import Notify
 import os
 import sys
 import select
@@ -35,8 +43,6 @@ import hashlib
 
 import cherrypy
 import subprocess
-from gi.repository import Notify
-from gi.repository import GLib
 import pybonjour
 import shutil
 import base64
@@ -51,6 +57,7 @@ version = "2.20"
 # Global Variables
 _notification_header = ""
 _notification_description = ""
+_notification_disabled = False
 
 # Configuration
 script_dir = os.path.abspath(os.path.dirname(__file__))
@@ -184,13 +191,16 @@ class bluetoothClientThread(threading.Thread):
 			if not os.path.isfile(icon_path):
 				with open(icon_path, 'w') as icon_file:
 					icon_file.write(icon_data)
-			notif = Notify.Notification.new(_notification_header,_notification_description,icon_path)
+  			notif = Notify.Notification.new(_notification_header,_notification_description,icon_path)
 		else:
 			print ("No icon data received")
 			notif = Notify.Notification.new(_notification_header,_notification_description)
 
 		try:
-			notif.show()
+                        if not _notification_disabled:
+			    notif.show()
+                        else:
+                            print("notification disabled, skipped")
 		except:
 			pass
 
@@ -225,6 +235,50 @@ class bluetoothClientThread(threading.Thread):
 		except IOError:
 			pass
 
+class LinconnectIndicator():
+    def __init__(self):
+        self.ind = AppIndicator.Indicator.new("Linconnect Indicator",
+                                          "indicator-messages",
+                                           AppIndicator.IndicatorCategory.APPLICATION_STATUS)
+        self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+        self.ind.set_attention_icon("indicator-messages-new")
+        self.ind.set_icon_theme_path("res")
+        #self.isIntegrated = self.checkIntegrated()
+        self.ind.set_icon('linconnect')
+        self.menu_setup()
+        self.ind.set_menu(self.menu)
+    
+    def menu_setup(self):
+        self.menu = Gtk.Menu()
+        self.switch_notifications_item = Gtk.MenuItem("Notifications")
+      #  self.switch_notification_item.set_sensitive(False)
+        self.switch_notifications_item.connect("activate", self.switch)
+        self.switch_notifications_item.show()
+        self.switch_item = Gtk.Switch()
+        self.switch_item.connect("notify::active", self.switch)
+        self.switch_item.set_active(True)
+#        hbox.pack_start(switch, True, True, 0)
+        self.seperator_item = Gtk.SeparatorMenuItem()
+        self.seperator_item.show()
+        self.exit_item = Gtk.MenuItem("Exit Linconnect")
+        self.exit_item.connect("activate", self.quit)
+        self.exit_item.show()
+
+        self.menu.append(self.switch_notifications_item)
+        self.menu.append(self.switch_item)
+        self.menu.append(self.seperator_item)
+        self.menu.append(self.exit_item)
+
+
+    def switch(self, widget, data=None):
+        global _notification_disabled
+        print("switch")
+        _notification_disabled = True
+
+    def quit(self, widget, data=None):
+        Gtk.main_quit()
+        print("should exit")
+
 def register_callback(sdRef, flags, errorCode, name, regtype, domain):
     if errorCode == pybonjour.kDNSServiceErr_NoError:
         print("Registered Bonjour service " + name)
@@ -253,6 +307,13 @@ def get_local_ip():
         if ip.__len__() > 0 and not ip.startswith("127."):
             ips.append(ip + ":" + parser.get('connection', 'port'))
     return ips
+
+def start_server():
+    cherrypy.server.socket_host = '0.0.0.0'
+    cherrypy.server.socket_port = int(parser.get('connection', 'port'))
+
+    cherrypy.quickstart(Notification())
+
 
 def bluetooth_server():
 	server_sock=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
@@ -283,25 +344,41 @@ def bluetooth_server():
 	server_sock.close()
 
 # Initialization
+#if not Notify.init("com.willhauck.linconnect"):
 if not Notify.init("com.willhauck.linconnect"):
     raise ImportError("Error initializing libnotify")
 
-# Start Bonjour if desired
-if parser.getboolean('connection', 'enable_bonjour') == 1:
-    thr = threading.Thread(target=initialize_bonjour)
-    thr.start()
+#newpid = os.fork()
+class LinconnectServer(threading.Thread):
+    def __init__(self):
+         threading.Thread.__init__(self)
 
-# Start Bluetooth server if desired
-if parser.getboolean('connection', 'enable_bluetooth') == 1:
-    thr = threading.Thread(target=bluetooth_server)
-    thr.start()
+    def initialize(self):
+        # Start Bonjour if desired
+        if parser.getboolean('connection', 'enable_bonjour') == 1:
+            thr = threading.Thread(target=initialize_bonjour)
+            thr.start()
+        
+        # Start Bluetooth server if desired
+        if parser.getboolean('connection', 'enable_bluetooth') == 1:
+            thr = threading.Thread(target=bluetooth_server)
+            thr.start()
+        
+        config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
+        print(config_instructions)
+        notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
+        notif.show()
+    
+    def run(self):
+        cherrypy.server.socket_host = '0.0.0.0'
+        cherrypy.server.socket_port = int(parser.get('connection', 'port'))
+        cherrypy.quickstart(Notification())
 
-config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
-print(config_instructions)
-notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
-notif.show()
 
-cherrypy.server.socket_host = '0.0.0.0'
-cherrypy.server.socket_port = int(parser.get('connection', 'port'))
-
-cherrypy.quickstart(Notification())
+indicator=LinconnectIndicator()
+server = LinconnectServer()
+server.initialize()
+server.start()
+#Gtk.gdk.threads_init()
+Gdk.threads_init()
+Gtk.main()
