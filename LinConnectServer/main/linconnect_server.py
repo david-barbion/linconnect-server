@@ -43,7 +43,15 @@ import hashlib
 
 import cherrypy
 import subprocess
-import pybonjour
+from gi.repository import Notify
+from gi.repository import GLib
+
+try:
+    import pybonjour
+    have_bonjour = True
+except:
+    have_bonjour = False
+
 import shutil
 import base64
 
@@ -302,18 +310,18 @@ def initialize_bonjour():
 
 
 def get_local_ip():
-    ips = []
-    for ip in subprocess.check_output("/sbin/ip address | grep -i 'inet ' | awk {'print $2'} | sed -e 's/\/[^\/]*$//'", shell=True).split("\n"):
-        if ip.__len__() > 0 and not ip.startswith("127."):
-            ips.append(ip + ":" + parser.get('connection', 'port'))
-    return ips
+    port = parser.get('connection', 'port')
+    if cherrypy.server.socket_host != "0.0.0.0":
+        return [cherrypy.server.socket_host + ":" + port]
+    iplines = (line.strip() for line in subprocess.check_output("/sbin/ip address", shell=True).split('\n'))
+    addresses = reduce(lambda a,v:a+v,(re.findall(r"inet ([\d.]+/\d+)",line) for line in iplines))
+    return [(ip + ":" + port) for ip, subnet in (addr.split('/') for addr in addresses if '.' in addr) if not ip.startswith("127.")]
 
 def start_server():
     cherrypy.server.socket_host = '0.0.0.0'
     cherrypy.server.socket_port = int(parser.get('connection', 'port'))
 
     cherrypy.quickstart(Notification())
-
 
 def bluetooth_server():
 	server_sock=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
@@ -348,6 +356,20 @@ def bluetooth_server():
 if not Notify.init("com.willhauck.linconnect"):
     raise ImportError("Error initializing libnotify")
 
+try:
+    cherrypy.server.socket_host = parser.get('connection', 'listen')
+    instructions_host = cherrypy.server.socket_host
+except:
+    cherrypy.server.socket_host = '0.0.0.0'
+    instructions_host = 'localhost'
+
+config_instructions = "Configuration instructions at http://%s:%s" % (instructions_host, parser.get('connection', 'port'))
+print(config_instructions)
+notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
+notif.show()
+
+cherrypy.server.socket_port = int(parser.get('connection', 'port'))
+
 #newpid = os.fork()
 class LinconnectServer(threading.Thread):
     def __init__(self):
@@ -356,8 +378,14 @@ class LinconnectServer(threading.Thread):
     def initialize(self):
         # Start Bonjour if desired
         if parser.getboolean('connection', 'enable_bonjour') == 1:
-            thr = threading.Thread(target=initialize_bonjour)
-            thr.start()
+            if have_bonjour:
+                thr = threading.Thread(target=initialize_bonjour)
+                thr.start()
+            else:
+                print("Bonjour not available, not initializing.")
+                if parser.getboolean('connection', 'enable_bonjour') == 1:
+                    thr = threading.Thread(target=initialize_bonjour)
+                    thr.start()
         
         # Start Bluetooth server if desired
         if parser.getboolean('connection', 'enable_bluetooth') == 1:
