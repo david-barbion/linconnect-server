@@ -39,10 +39,10 @@ fi
 read -p "Press any key to continue..." -n 1 -r
 
 echo "Installing LinConnect..."
-git clone -q https://github.com/hauckwill/linconnect-server.git ~/.linconnect
+git clone -q https://github.com/david-barbion/linconnect-server.git ~/.linconnect
 cd ~/.linconnect
 echo "Setting up LinConnect..."
-git remote add upstream https://github.com/hauckwill/linconnect-server.git
+git remote add upstream https://github.com/david-barbion/linconnect-server.git
 
 read -p "Autostart LinConnect server on boot? [Y/N]" -n 1 -r
 echo    # (optional) move to a new line
