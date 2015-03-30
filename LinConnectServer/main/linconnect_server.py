@@ -284,8 +284,40 @@ class LinconnectIndicator():
         _notification_disabled = True
 
     def quit(self, widget, data=None):
-        Gtk.main_quit()
         print("should exit")
+        cherrypy.engine.exit()
+        Gtk.main_quit()
+
+class LinconnectServerThread(threading.Thread):
+    def __init__(self):
+         threading.Thread.__init__(self)
+
+    def initialize(self):
+        # Start Bonjour if desired
+        if parser.getboolean('connection', 'enable_bonjour') == 1:
+            if have_bonjour:
+                thr = threading.Thread(target=initialize_bonjour)
+                thr.start()
+            else:
+                print("Bonjour not available, not initializing.")
+                if parser.getboolean('connection', 'enable_bonjour') == 1:
+                    thr = threading.Thread(target=initialize_bonjour)
+                    thr.start()
+        
+        # Start Bluetooth server if desired
+        if parser.getboolean('connection', 'enable_bluetooth') == 1:
+            thr = threading.Thread(target=bluetooth_server)
+            thr.start()
+        
+        config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
+        print(config_instructions)
+        notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
+        notif.show()
+    
+    def run(self):
+        cherrypy.server.socket_host = '0.0.0.0'
+        cherrypy.server.socket_port = int(parser.get('connection', 'port'))
+        cherrypy.quickstart(Notification())
 
 def register_callback(sdRef, flags, errorCode, name, regtype, domain):
     if errorCode == pybonjour.kDNSServiceErr_NoError:
@@ -317,12 +349,6 @@ def get_local_ip():
     addresses = reduce(lambda a,v:a+v,(re.findall(r"inet ([\d.]+/\d+)",line) for line in iplines))
     return [(ip + ":" + port) for ip, subnet in (addr.split('/') for addr in addresses if '.' in addr) if not ip.startswith("127.")]
 
-def start_server():
-    cherrypy.server.socket_host = '0.0.0.0'
-    cherrypy.server.socket_port = int(parser.get('connection', 'port'))
-
-    cherrypy.quickstart(Notification())
-
 def bluetooth_server():
 	server_sock=bluetooth.BluetoothSocket( bluetooth.RFCOMM )
 	server_sock.bind(("",bluetooth.PORT_ANY))
@@ -351,8 +377,10 @@ def bluetooth_server():
 	print ("Bluetooth server exiting. Closing server socket.")
 	server_sock.close()
 
+########
+# MAIN #
+########
 # Initialization
-#if not Notify.init("com.willhauck.linconnect"):
 if not Notify.init("com.willhauck.linconnect"):
     raise ImportError("Error initializing libnotify")
 
@@ -370,43 +398,9 @@ notif.show()
 
 cherrypy.server.socket_port = int(parser.get('connection', 'port'))
 
-#newpid = os.fork()
-class LinconnectServer(threading.Thread):
-    def __init__(self):
-         threading.Thread.__init__(self)
-
-    def initialize(self):
-        # Start Bonjour if desired
-        if parser.getboolean('connection', 'enable_bonjour') == 1:
-            if have_bonjour:
-                thr = threading.Thread(target=initialize_bonjour)
-                thr.start()
-            else:
-                print("Bonjour not available, not initializing.")
-                if parser.getboolean('connection', 'enable_bonjour') == 1:
-                    thr = threading.Thread(target=initialize_bonjour)
-                    thr.start()
-        
-        # Start Bluetooth server if desired
-        if parser.getboolean('connection', 'enable_bluetooth') == 1:
-            thr = threading.Thread(target=bluetooth_server)
-            thr.start()
-        
-        config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
-        print(config_instructions)
-        notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
-        notif.show()
-    
-    def run(self):
-        cherrypy.server.socket_host = '0.0.0.0'
-        cherrypy.server.socket_port = int(parser.get('connection', 'port'))
-        cherrypy.quickstart(Notification())
-
-
-indicator=LinconnectIndicator()
-server = LinconnectServer()
+indicator = LinconnectIndicator()
+server = LinconnectServerThread()
 server.initialize()
 server.start()
-#Gtk.gdk.threads_init()
 Gdk.threads_init()
 Gtk.main()
