@@ -32,7 +32,7 @@ else
 	echo "Installing dependencies..."
 	sudo apt-get install -y python-pip python-gobject git libavahi-compat-libdnssd1 gir1.2-notify-0.7
 	echo "Installing Python dependencies..."
-	sudo pip install --allow-external pybonjour --allow-unverified pybonjour pybonjour
+	sudo pip install pybonjour
 	sudo pip install cherrypy
 fi
 
