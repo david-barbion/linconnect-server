@@ -258,30 +258,31 @@ class LinconnectIndicator():
     
     def menu_setup(self):
         self.menu = Gtk.Menu()
-        self.switch_notifications_item = Gtk.MenuItem("Notifications")
-      #  self.switch_notification_item.set_sensitive(False)
+
+        self.switch_notifications_item = Gtk.CheckMenuItem("Notifications")
         self.switch_notifications_item.connect("activate", self.switch)
+        self.switch_notifications_item.set_active(True)
         self.switch_notifications_item.show()
-        self.switch_item = Gtk.Switch()
-        self.switch_item.connect("notify::active", self.switch)
-        self.switch_item.set_active(True)
-#        hbox.pack_start(switch, True, True, 0)
+
         self.seperator_item = Gtk.SeparatorMenuItem()
         self.seperator_item.show()
+
         self.exit_item = Gtk.MenuItem("Exit Linconnect")
         self.exit_item.connect("activate", self.quit)
         self.exit_item.show()
 
         self.menu.append(self.switch_notifications_item)
-        self.menu.append(self.switch_item)
         self.menu.append(self.seperator_item)
         self.menu.append(self.exit_item)
 
-
     def switch(self, widget, data=None):
         global _notification_disabled
-        print("switch")
-        _notification_disabled = True
+        if widget.get_active():
+          _notification_disabled = False
+          print("Notification switched on")
+        else:
+          _notification_disabled = True
+          print("Notification switched off")
 
     def quit(self, widget, data=None):
         print("should exit")
@@ -315,8 +316,7 @@ class LinconnectServerThread(threading.Thread):
         config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
         print(config_instructions)
         notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
-        if not _notification_disabled:
-          notif.show()
+        notif.show()
     
     def run(self):
         cherrypy.server.socket_host = '0.0.0.0'
@@ -395,11 +395,6 @@ try:
 except:
     cherrypy.server.socket_host = '0.0.0.0'
     instructions_host = 'localhost'
-
-config_instructions = "Configuration instructions at http://%s:%s" % (instructions_host, parser.get('connection', 'port'))
-print(config_instructions)
-notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
-notif.show()
 
 cherrypy.server.socket_port = int(parser.get('connection', 'port'))
 
