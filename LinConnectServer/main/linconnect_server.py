@@ -46,6 +46,11 @@ import subprocess
 from gi.repository import Notify
 from gi.repository import GLib
 
+import gettext
+gettext.bindtextdomain('linconnect-server', 'locale')
+gettext.textdomain('linconnect-server')
+_ = gettext.gettext
+
 try:
     import pybonjour
     have_bonjour = True
@@ -259,7 +264,7 @@ class LinconnectIndicator():
     def menu_setup(self):
         self.menu = Gtk.Menu()
 
-        self.switch_notifications_item = Gtk.CheckMenuItem("Notifications")
+        self.switch_notifications_item = Gtk.CheckMenuItem(_("Notifications"))
         self.switch_notifications_item.connect("activate", self.switch)
         self.switch_notifications_item.set_active(True)
         self.switch_notifications_item.show()
@@ -267,7 +272,7 @@ class LinconnectIndicator():
         self.seperator_item = Gtk.SeparatorMenuItem()
         self.seperator_item.show()
 
-        self.exit_item = Gtk.MenuItem("Exit Linconnect")
+        self.exit_item = Gtk.MenuItem(_("Exit Linconnect"))
         self.exit_item.connect("activate", self.quit)
         self.exit_item.show()
 
