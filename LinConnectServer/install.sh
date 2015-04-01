@@ -20,19 +20,17 @@ then
 	echo "* python-gobject"
 	echo "* libavahi-compat-libdnssd1"
 	echo "* cherrypy (python package)"
-	echo "* pybonjour (python package)"
 	
     else
 	echo "Installing dependencies..."
 	sudo yum install -y python2 python-pip pygobject2 git avahi-compat-libdns_sd
 	echo "Installing Python dependencies..."
-	sudo pip install cherrypy pybonjour
+	sudo pip install cherrypy
     fi
 else
 	echo "Installing dependencies..."
 	sudo apt-get install -y python-pip python-gobject git libavahi-compat-libdnssd1 gir1.2-notify-0.7
 	echo "Installing Python dependencies..."
-	sudo pip install pybonjour
 	sudo pip install cherrypy
 fi
 

@@ -51,14 +51,9 @@ gettext.bindtextdomain('linconnect-server', 'locale')
 gettext.textdomain('linconnect-server')
 _ = gettext.gettext
 
-try:
-    import pybonjour
-    have_bonjour = True
-except:
-    have_bonjour = False
-
 import shutil
 import base64
+from ZeroconfService import ZeroconfService
 
 import bluetooth
 import json
@@ -105,8 +100,8 @@ except IOError:
     with open(conf_file, 'w') as text_file:
         text_file.write("""[connection]
 port = 9090
-enable_bonjour = 1
 enable_bluetooth = 1
+enable_avahi = 1
 
 [other]
 enable_instruction_webpage = 1
@@ -319,19 +314,16 @@ class LinconnectServerThread(threading.Thread):
          threading.Thread.__init__(self)
 
     def initialize(self):
-        # Start Bonjour if desired
-        if parser.getboolean('connection', 'enable_bonjour') == 1:
-            if have_bonjour:
-                self.bonjour_thr = threading.Thread(target=initialize_bonjour)
-                self.bonjour_thr.start()
-            else:
-                print("Bonjour not available, not initializing.")
-        
+        # Start Avahi service in a thread if desired
+        if parser.getboolean('connection', 'enable_avahi') == 1:
+            thr = threading.Thread(target=publish_service)
+            thr.start()
+
         # Start Bluetooth server if desired
         if parser.getboolean('connection', 'enable_bluetooth') == 1:
             self.bluetooth_thr = threading.Thread(target=bluetooth_server)
             self.bluetooth_thr.start()
-        
+
         config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
         print(config_instructions)
         notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
@@ -343,26 +335,15 @@ class LinconnectServerThread(threading.Thread):
         cherrypy.quickstart(Notification())
         print("LinconnectServerThread exited")
 
-def register_callback(sdRef, flags, errorCode, name, regtype, domain):
-    if errorCode == pybonjour.kDNSServiceErr_NoError:
-        print("Registered Bonjour service " + name)
+def publish_service():
+    """
+    Registering and publishing a service using Avahi
+    """
 
-
-def initialize_bonjour():
-    sdRef = pybonjour.DNSServiceRegister(name=_service_name,
-                                     regtype="_linconnect._tcp",
-                                     port=int(parser.get('connection', 'port')),
-                                     callBack=register_callback)
-    try:
-        try:
-            while True:
-                ready = select.select([sdRef], [], [])
-                if sdRef in ready[0]:
-                    pybonjour.DNSServiceProcessResult(sdRef)
-        except KeyboardInterrupt:
-            pass
-    finally:
-        sdRef.close()
+    service = ZeroconfService(name=_service_name,
+                              stype="_linconnect._tcp",
+                              port=int(parser.get('connection', 'port')))
+    service.publish()
 
 
 def get_local_ip():
@@ -414,8 +395,8 @@ try:
 except:
     cherrypy.server.socket_host = '0.0.0.0'
     instructions_host = 'localhost'
-
 cherrypy.server.socket_port = int(parser.get('connection', 'port'))
+
 
 indicator = LinconnectIndicator()
 server = LinconnectServerThread()
