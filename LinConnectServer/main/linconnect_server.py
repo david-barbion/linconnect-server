@@ -272,11 +272,16 @@ class LinconnectIndicator():
         self.seperator_item = Gtk.SeparatorMenuItem()
         self.seperator_item.show()
 
+        self.about_item = Gtk.MenuItem(_("About"))
+        self.about_item.connect("activate", self.about)
+        self.about_item.show()
+
         self.exit_item = Gtk.MenuItem(_("Exit Linconnect"))
         self.exit_item.connect("activate", self.quit)
         self.exit_item.show()
 
         self.menu.append(self.switch_notifications_item)
+        self.menu.append(self.about_item)
         self.menu.append(self.seperator_item)
         self.menu.append(self.exit_item)
 
@@ -290,6 +295,13 @@ class LinconnectIndicator():
           _notification_disabled = True
           self.ind.set_icon_full('linconnect-off', 'program icon off')
           print("Notification switched off")
+
+    def about(self, widget, data=None):
+       dialog = Gtk.MessageDialog(None, 0, Gtk.MessageType.INFO,
+                        Gtk.ButtonsType.OK, "Linconnect-server")
+       dialog.format_secondary_text(_("Mirror Android notifications on Linux Desktop"))
+       dialog.run()
+       dialog.destroy()
 
     def quit(self, widget, data=None):
         print("should exit")
