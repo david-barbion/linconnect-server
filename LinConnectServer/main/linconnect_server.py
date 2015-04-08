@@ -59,8 +59,15 @@ import bluetooth
 import json
 import time
 
+import logging
+
 app_name = 'linconnect-server'
 version = "2.20"
+
+# initialize logger
+FORMAT='%(asctime)s %(name)s %(levelname)s %(message)s'
+logging.basicConfig(format=FORMAT,level=logging.INFO)
+logger = logging.getLogger(app_name)
 
 # Global Variables
 _notification_header = ""
@@ -86,17 +93,17 @@ for icon_cache_file in glob.glob(icon_path_format % '*'):
 old_conf_file = os.path.join(script_dir, 'conf.ini')
 if os.path.isfile(old_conf_file):
     if os.path.isfile(conf_file):
-        print("Both old and new config files exist: %s and %s, ignoring old one" % (old_conf_file, conf_file))
+        logger.info("Both old and new config files exist: %s and %s, ignoring old one" % (old_conf_file, conf_file))
     else:
-        print("Old config file %s found, moving to a new location: %s" % (old_conf_file, conf_file))
+        logger.info("Old config file %s found, moving to a new location: %s" % (old_conf_file, conf_file))
         shutil.move(old_conf_file, conf_file)
 del old_conf_file
 
 try:
     with open(conf_file):
-        print("Loading conf.ini")
+        logger.info("Loading conf.ini")
 except IOError:
-    print("Creating conf.ini")
+    logger.warning("Creating conf.ini")
     with open(conf_file, 'w') as text_file:
         text_file.write("""[connection]
 port = 9090
@@ -178,22 +185,34 @@ class bluetoothClientThread(threading.Thread):
 		self.client_info = info
 
 	def run(self):
-		print ("Starting bluetooth client thread")
-		self.client_sock.setblocking(0)
+		logger.debug ("Starting bluetooth client thread")
+		self.client_sock.setblocking(True)
 
-		header_data_json = base64.b64decode(self.get_data())
-		print ("Received [%s]" % header_data_json)
-		header_data = json.loads(header_data_json)
+		bluetooth_data = self.read_data()
+		try:
+			header_data_json = base64.b64decode(bluetooth_data)
+		except:
+			logger.error("Malformed data [%s]" % bluetooth_data)
+			self.client_sock.close()
+			return
+
+		logger.debug ("Received [%s]" % header_data_json)
+		try:
+			header_data = json.loads(header_data_json)
+		except:
+			logger.error("Malformed json data [%s]" % header_data_json)
+			self.client_sock.close()
+			return
 
 		self.write_data(base64.b64encode("HEADEROK"))
 
 		_notification_header = header_data["notificationheader"]
 		_notification_description = header_data["notificationdescription"]
 
-		icon_data = self.get_data()
+		icon_data = self.read_data()
 
 		if (len(icon_data)):
-			print ("Received icon (%s bytes)" % len(icon_data))
+			logger.debug ("Received icon (%s bytes)" % len(icon_data))
 			self.write_data(base64.b64encode("ICONOK"))
 			icon_path = icon_path_format % hashlib.md5(icon_data).hexdigest()
 			if not os.path.isfile(icon_path):
@@ -201,41 +220,34 @@ class bluetoothClientThread(threading.Thread):
 					icon_file.write(icon_data)
   			notif = Notify.Notification.new(_notification_header,_notification_description,icon_path)
 		else:
-			print ("No icon data received")
+			logger.debug ("No icon data received")
 			notif = Notify.Notification.new(_notification_header,_notification_description)
 
-		try:
-			if not _notification_disabled:
+		if not _notification_disabled:
+			try:
 				notif.show()
-			else:
-				print("notification disabled, skipped")
-		except:
-			pass
+			except:
+				pass
+		else:
+			logger.debug("Notification disabled, skipped")
 
-		print ("Closing client socket")
+		logger.debug ("Closing client socket")
 		self.client_sock.close()
 
-	def get_data(self):
-		total_data = []
-		begin = time.time()
-		timeout = 1
-		while True:
-			if (total_data and time.time()-begin > timeout):
-				break
-			elif (time.time()-begin > timeout*2):
-				break
-
-			try:
-				data = self.client_sock.recv(1024)
-				if data:
-					total_data.append(data)
-					begin = time.time()
-				else:
-					time.sleep(0.1)
-			except IOError:
-				pass
-
-		return ''.join(total_data)
+	def read_data(self):
+		data = ''
+		try:
+			while True:
+				ready = select.select([self.client_sock,],[], [],2)
+				if ready[0]:
+					data += self.client_sock.recv(4096)
+					logger.debug("data received %s" % data)
+				else: 
+					break
+		except: # TODO get error
+			pass
+		logger.info("received %d bytes" % len(data))
+		return data
 
 	def write_data(self,data):
 		try:
@@ -285,11 +297,11 @@ class LinconnectIndicator():
         if widget.get_active():
           _notification_disabled = False
           self.ind.set_icon_full('linconnect', 'program icon on')
-          print("Notification switched on")
+          logger.info("Notification switched on")
         else:
           _notification_disabled = True
           self.ind.set_icon_full('linconnect-off', 'program icon off')
-          print("Notification switched off")
+          logger.info("Notification switched off")
 
     def about(self, widget, data=None):
        dialog = Gtk.MessageDialog(None, 0, Gtk.MessageType.INFO,
@@ -299,13 +311,13 @@ class LinconnectIndicator():
        dialog.destroy()
 
     def quit(self, widget, data=None):
-        print("should exit")
+        logger.debug("should exit")
         for thread in threading.enumerate():
             if thread.isAlive():
                 try:
                     thread._Thread__stop()
                 except:
-                    print(str(thread.getName()) + ' could not be terminated')
+                    logger.error(str(thread.getName()) + ' could not be terminated')
         cherrypy.engine.exit()
         Gtk.main_quit()
 
@@ -316,8 +328,8 @@ class LinconnectServerThread(threading.Thread):
     def initialize(self):
         # Start Avahi service in a thread if desired
         if parser.getboolean('connection', 'enable_avahi') == 1:
-            thr = threading.Thread(target=publish_service)
-            thr.start()
+            self.avahi_thr = threading.Thread(target=publish_service)
+            self.avahi_thr.start()
 
         # Start Bluetooth server if desired
         if parser.getboolean('connection', 'enable_bluetooth') == 1:
@@ -325,15 +337,19 @@ class LinconnectServerThread(threading.Thread):
             self.bluetooth_thr.start()
 
         config_instructions = "Configuration instructions at http://localhost:" + parser.get('connection', 'port')
-        print(config_instructions)
+        logger.info(config_instructions)
         notif = Notify.Notification.new("Notification server started (version " + version + ")", config_instructions, "info")
         notif.show()
     
     def run(self):
-        cherrypy.server.socket_host = '0.0.0.0'
+        try:
+            cherrypy.server.socket_host = parser.get('connection', 'listen')
+        except:
+            cherrypy.server.socket_host = '0.0.0.0'
         cherrypy.server.socket_port = int(parser.get('connection', 'port'))
+        cherrypy.log.screen = False
         cherrypy.quickstart(Notification())
-        print("LinconnectServerThread exited")
+        logger.info("LinconnectServerThread exited")
 
 def publish_service():
     """
@@ -367,19 +383,19 @@ def bluetooth_server():
 						       profiles = [ bluetooth.SERIAL_PORT_PROFILE ],
 						       )
 
-	print ("Bluetooth server started, waiting for connections on RFCOMM channel %d" % port)
+	logger.info ("Bluetooth server started, waiting for connections on RFCOMM channel %d" % port)
 
 	try:
 		while True:
 			client_sock, client_info = server_sock.accept()
-			print ("Accepted connection from ", client_info)
+			logger.info ("Accepted connection from {0}".format(client_info))
 			th = bluetoothClientThread(client_sock,client_info)
 			th.start()
 
 	except IOError:
 		pass
 
-	print ("Bluetooth server exiting. Closing server socket.")
+	logger.info ("Bluetooth server exiting. Closing server socket.")
 	server_sock.close()
 
 ########
@@ -388,15 +404,6 @@ def bluetooth_server():
 # Initialization
 if not Notify.init("com.willhauck.linconnect"):
     raise ImportError("Error initializing libnotify")
-
-try:
-    cherrypy.server.socket_host = parser.get('connection', 'listen')
-    instructions_host = cherrypy.server.socket_host
-except:
-    cherrypy.server.socket_host = '0.0.0.0'
-    instructions_host = 'localhost'
-cherrypy.server.socket_port = int(parser.get('connection', 'port'))
-
 
 indicator = LinconnectIndicator()
 server = LinconnectServerThread()
