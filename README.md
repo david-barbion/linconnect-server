@@ -3,13 +3,15 @@ linconnect-server
 
 Mirror Android notifications on a Linux desktop.
 
-LinConnect Client: https://github.com/hauckwill/linconnect-client/
+Bluetooth capable LinConnect Client from Varod: https://github.com/varod/linconnect-client/tree/bluetooth
+
+Original LinConnect Client from Hauckwill: https://github.com/hauckwill/linconnect-client/
 
 Introduction
 ------------
 LinConnect is a project to mirror *all* Android notifications on a Linux desktop using LibNotify.
 
-*Please note that this is my first time using Python (though I do have experience in other languages), so the code may still be messy. It's a WIP.*
+This application is hugely based on Hauckwill jobs (https://github.com/hauckwill/linconnect-server). It also contains bluetooth support added by Evilny0 (https://github.com/evilny0/linconnect-server/tree/bluetooth).
 
 Installation
 ------------
@@ -25,9 +27,9 @@ Installation
 
 **Running**
 
-Simply run linconnect_server.py to start the server, then start the Android application. The Android application will detect the server and display it in the server list. Selecting it will send a test notification to the server.
+Simply run `linconnect_server.py` to start the server, then start the Android application. The Android application will detect the server and display it in the server list. Selecting it will send a test notification to the server.
 
-**Simple Setup (tested on Ubuntu 13.10)**
+**Simple Setup (tested on Ubuntu 13.10 and 14.10)**
 
 Enter the following command into a console to install the server, set it to autostart, and run LinConnect. The server will be automatically updated daily.
 
@@ -47,3 +49,5 @@ Client Download
 A binary of the client may be downloaded from the Google Play Store.
 
 https://play.google.com/store/apps/details?id=com.willhauck.linconnectclient
+
+Check Varod github page for bluetooth aware client also!
