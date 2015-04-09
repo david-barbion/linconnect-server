@@ -20,29 +20,27 @@ then
 	echo "* python-gobject"
 	echo "* libavahi-compat-libdnssd1"
 	echo "* cherrypy (python package)"
-	echo "* pybonjour (python package)"
 	
     else
 	echo "Installing dependencies..."
 	sudo yum install -y python2 python-pip pygobject2 git avahi-compat-libdns_sd
 	echo "Installing Python dependencies..."
-	sudo pip install cherrypy pybonjour
+	sudo pip install cherrypy
     fi
 else
 	echo "Installing dependencies..."
 	sudo apt-get install -y python-pip python-gobject git libavahi-compat-libdnssd1 gir1.2-notify-0.7
 	echo "Installing Python dependencies..."
-	sudo pip install --allow-external pybonjour --allow-unverified pybonjour pybonjour
 	sudo pip install cherrypy
 fi
 
 read -p "Press any key to continue..." -n 1 -r
 
 echo "Installing LinConnect..."
-git clone -q https://github.com/hauckwill/linconnect-server.git ~/.linconnect
+git clone -q https://github.com/david-barbion/linconnect-server.git ~/.linconnect
 cd ~/.linconnect
 echo "Setting up LinConnect..."
-git remote add upstream https://github.com/hauckwill/linconnect-server.git
+git remote add upstream https://github.com/david-barbion/linconnect-server.git
 
 read -p "Autostart LinConnect server on boot? [Y/N]" -n 1 -r
 echo    # (optional) move to a new line

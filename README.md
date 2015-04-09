@@ -23,7 +23,6 @@ Installation
 * python-gobject
 * libavahi-compat-libdnssd1
 * cherrypy (python package)
-* pybonjour (python package)
 
 **Running**
 
