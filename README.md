@@ -49,4 +49,4 @@ A binary of the client may be downloaded from the Google Play Store.
 
 https://play.google.com/store/apps/details?id=com.willhauck.linconnectclient
 
-Check Varod github page for bluetooth aware client also!
+Check Varod github page for bluetooth aware client also: https://github.com/varod/linconnect-client
