@@ -32,7 +32,7 @@ Simply run `linconnect_server.py` to start the server, then start the Android ap
 Enter the following command into a console to install the server, set it to autostart, and run LinConnect. The server will be automatically updated daily.
 
 ```bash
-$ wget --quiet https://raw.github.com/hauckwill/linconnect-server/master/LinConnectServer/install.sh; \
+$ wget --quiet https://raw.githubusercontent.com/david-barbion/linconnect-server/master/LinConnectServer/install.sh; \
 chmod +x install.sh; \
 ./install.sh
 ```
