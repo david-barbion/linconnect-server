@@ -1,11 +1,10 @@
 linconnect-server
 =================
 
-Mirror Android notifications on a Linux desktop.
+Mirror Android notifications on a Linux desktop. You need the Android client, you can choose between:
 
-Bluetooth capable LinConnect Client from Varod: https://github.com/varod/linconnect-client/tree/bluetooth
-
-Original LinConnect Client from Hauckwill: https://github.com/hauckwill/linconnect-client/
+* Bluetooth and wifi capable LinConnect Client from Varod: https://github.com/varod/linconnect-client/tree/bluetooth
+* Wifi only LinConnect Client from Hauckwill: https://github.com/hauckwill/linconnect-client/
 
 Introduction
 ------------
